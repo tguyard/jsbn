@@ -113,6 +113,11 @@ History
 -------
 
 <dl>
+<dt><b>Version 1.4 (7/1/2013):</b></dt>
+<dd>Fixed variable name collision between sha1.js and base64.js.
+<dd>Obtain entropy from window.crypto.getRandomValues where available.
+<dd>Added ECCurveFp.encodePointHex.
+<dd>Fixed inconsistent use of DV in jsbn.js.
 <dt><b>Version 1.3 (7/3/2012):</b></dt>
 <dd>Fixed bug when comparing negative integers of different word lengths.
 <dt><b>Version 1.2 (3/29/2011):</b></dt>
