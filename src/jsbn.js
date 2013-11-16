@@ -33,8 +33,39 @@
         else this.fromString(a,b);
     }
 
+    // Digit conversions
+    var BI_RM = "0123456789abcdefghijklmnopqrstuvwxyz";
+    var BI_RC = new Array();
+    var rr,vv;
+    rr = "0".charCodeAt(0);
+    for(vv = 0; vv <= 9; ++vv) BI_RC[rr++] = vv;
+    rr = "a".charCodeAt(0);
+    for(vv = 10; vv < 36; ++vv) BI_RC[rr++] = vv;
+    rr = "A".charCodeAt(0);
+    for(vv = 10; vv < 36; ++vv) BI_RC[rr++] = vv;
+
+    function int2char(n) { return BI_RM.charAt(n); }
+    function intAt(s,i) {
+      var c = BI_RC[s.charCodeAt(i)];
+      return (c==null)?-1:c;
+    }
+
     // return new, unset BigInteger
     function nbi() { return new BigInteger(null); }
+
+    // return bigint initialized to value
+    function nbv(i) { var r = nbi(); r.fromInt(i); return r; }
+
+    // returns bit length of the integer x
+    function nbits(x) {
+      var r = 1, t;
+      if((t=x>>>16) != 0) { x = t; r += 16; }
+      if((t=x>>8) != 0) { x = t; r += 8; }
+      if((t=x>>4) != 0) { x = t; r += 4; }
+      if((t=x>>2) != 0) { x = t; r += 2; }
+      if((t=x>>1) != 0) { x = t; r += 1; }
+      return r;
+    }
 
     // am: Compute w_j += (x*this_i), propagate carries,
     // c is initial carry, returns final carry.
@@ -94,32 +125,6 @@
       dbits = 28;
     }
 
-    BigInteger.prototype.DB = dbits;
-    BigInteger.prototype.DM = ((1<<dbits)-1);
-    BigInteger.prototype.DV = (1<<dbits);
-
-    var BI_FP = 52;
-    BigInteger.prototype.FV = Math.pow(2,BI_FP);
-    BigInteger.prototype.F1 = BI_FP-dbits;
-    BigInteger.prototype.F2 = 2*dbits-BI_FP;
-
-    // Digit conversions
-    var BI_RM = "0123456789abcdefghijklmnopqrstuvwxyz";
-    var BI_RC = new Array();
-    var rr,vv;
-    rr = "0".charCodeAt(0);
-    for(vv = 0; vv <= 9; ++vv) BI_RC[rr++] = vv;
-    rr = "a".charCodeAt(0);
-    for(vv = 10; vv < 36; ++vv) BI_RC[rr++] = vv;
-    rr = "A".charCodeAt(0);
-    for(vv = 10; vv < 36; ++vv) BI_RC[rr++] = vv;
-
-    function int2char(n) { return BI_RM.charAt(n); }
-    function intAt(s,i) {
-      var c = BI_RC[s.charCodeAt(i)];
-      return (c==null)?-1:c;
-    }
-
     BigInteger.utils = {
         apply: apply,
         int2char: int2char,
@@ -128,6 +133,14 @@
         nbv: nbv,
         nbits: nbits
     };
+
+    var BI_FP = 52;
+    BigInteger.prototype.DB = dbits;
+    BigInteger.prototype.DM = ((1<<dbits)-1);
+    BigInteger.prototype.DV = (1<<dbits);
+    BigInteger.prototype.FV = Math.pow(2,BI_FP);
+    BigInteger.prototype.F1 = BI_FP-dbits;
+    BigInteger.prototype.F2 = 2*dbits-BI_FP;
 
     /**
      * copy this to r
@@ -150,9 +163,6 @@
       else if(x < -1) this[0] = x+this.DV;
       else this.t = 0;
     }
-
-    // return bigint initialized to value
-    function nbv(i) { var r = nbi(); r.fromInt(i); return r; }
 
     /**
      * set from string and radix
@@ -205,79 +215,6 @@
       while(this.t > 0 && this[this.t-1] == c) --this.t;
     }
 
-    /**
-     * return string representation in given radix
-     */
-    function bnToString(b) {
-      if(this.s < 0) return "-"+this.negate().toString(b);
-      var k;
-      if(b == 16) k = 4;
-      else if(b == 8) k = 3;
-      else if(b == 2) k = 1;
-      else if(b == 32) k = 5;
-      else if(b == 4) k = 2;
-      else return this.toRadix(b);
-      var km = (1<<k)-1, d, m = false, r = "", i = this.t;
-      var p = this.DB-(i*this.DB)%k;
-      if(i-- > 0) {
-        if(p < this.DB && (d = this[i]>>p) > 0) { m = true; r = int2char(d); }
-        while(i >= 0) {
-          if(p < k) {
-            d = (this[i]&((1<<p)-1))<<(k-p);
-            d |= this[--i]>>(p+=this.DB-k);
-          }
-          else {
-            d = (this[i]>>(p-=k))&km;
-            if(p <= 0) { p += this.DB; --i; }
-          }
-          if(d > 0) m = true;
-          if(m) r += int2char(d);
-        }
-      }
-      return m?r:"0";
-    }
-
-    /**
-     * -this
-     */
-    function bnNegate() { var r = nbi(); BigInteger.ZERO.subTo(this,r); return r; }
-
-    /**
-     * |this|
-     */
-    function bnAbs() { return (this.s<0)?this.negate():this; }
-
-    /**
-     * return + if this > a, - if this < a, 0 if equal
-     */
-    function bnCompareTo(a) {
-      var r = this.s-a.s;
-      if(r != 0) return r;
-      var i = this.t;
-      r = i-a.t;
-      if(r != 0) return (this.s<0)?-r:r;
-      while(--i >= 0) if((r=this[i]-a[i]) != 0) return r;
-      return 0;
-    }
-
-    // returns bit length of the integer x
-    function nbits(x) {
-      var r = 1, t;
-      if((t=x>>>16) != 0) { x = t; r += 16; }
-      if((t=x>>8) != 0) { x = t; r += 8; }
-      if((t=x>>4) != 0) { x = t; r += 4; }
-      if((t=x>>2) != 0) { x = t; r += 2; }
-      if((t=x>>1) != 0) { x = t; r += 1; }
-      return r;
-    }
-
-    /**
-     * return the number of bits in "this"
-     */
-    function bnBitLength() {
-      if(this.t <= 0) return 0;
-      return this.DB*(this.t-1)+nbits(this[this.t-1]^(this.s&this.DM));
-    }
 
     /**
      * r = this << n*DB
@@ -467,33 +404,6 @@
     }
 
     /**
-     * this mod a
-     */
-    function bnMod(a) {
-      var r = nbi();
-      this.abs().divRemTo(a,null,r);
-      if(this.s < 0 && r.compareTo(BigInteger.ZERO) > 0) a.subTo(r,r);
-      return r;
-    }
-
-    // Modular reduction using "classic" algorithm
-    function Classic(m) { this.m = m; }
-    function cConvert(x) {
-      if(x.s < 0 || x.compareTo(this.m) >= 0) return x.mod(this.m);
-      else return x;
-    }
-    function cRevert(x) { return x; }
-    function cReduce(x) { x.divRemTo(this.m,null,x); }
-    function cMulTo(x,y,r) { x.multiplyTo(y,r); this.reduce(r); }
-    function cSqrTo(x,r) { x.squareTo(r); this.reduce(r); }
-
-    Classic.prototype.convert = cConvert;
-    Classic.prototype.revert = cRevert;
-    Classic.prototype.reduce = cReduce;
-    Classic.prototype.mulTo = cMulTo;
-    Classic.prototype.sqrTo = cSqrTo;
-
-    /**
      * return "-1/this % 2^DB"; useful for Mont. reduction
      * justification:
      *         xy == 1 (mod m)
@@ -520,6 +430,126 @@
       // we really want the negative inverse, and -DV < y < DV
       return (y>0)?this.DV-y:-y;
     }
+    /**
+     * true iff this is even
+     * @protected
+     */
+    function bnpIsEven() { return ((this.t>0)?(this[0]&1):this.s) == 0; }
+
+    /**
+     * this^e, e < 2^32, doing sqr and mul with "r" (HAC 14.79)
+     * @protected
+     */
+    function bnpExp(e,z) {
+      if(e > 0xffffffff || e < 1) return BigInteger.ONE;
+      var r = nbi(), r2 = nbi(), g = z.convert(this), i = nbits(e)-1;
+      g.copyTo(r);
+      while(--i >= 0) {
+        z.sqrTo(r,r2);
+        if((e&(1<<i)) > 0) z.mulTo(r2,g,r);
+        else { var t = r; r = r2; r2 = t; }
+      }
+      return z.revert(r);
+    }
+
+    /**
+     * return string representation in given radix
+     */
+    function bnToString(b) {
+      if(this.s < 0) return "-"+this.negate().toString(b);
+      var k;
+      if(b == 16) k = 4;
+      else if(b == 8) k = 3;
+      else if(b == 2) k = 1;
+      else if(b == 32) k = 5;
+      else if(b == 4) k = 2;
+      else return this.toRadix(b);
+      var km = (1<<k)-1, d, m = false, r = "", i = this.t;
+      var p = this.DB-(i*this.DB)%k;
+      if(i-- > 0) {
+        if(p < this.DB && (d = this[i]>>p) > 0) { m = true; r = int2char(d); }
+        while(i >= 0) {
+          if(p < k) {
+            d = (this[i]&((1<<p)-1))<<(k-p);
+            d |= this[--i]>>(p+=this.DB-k);
+          }
+          else {
+            d = (this[i]>>(p-=k))&km;
+            if(p <= 0) { p += this.DB; --i; }
+          }
+          if(d > 0) m = true;
+          if(m) r += int2char(d);
+        }
+      }
+      return m?r:"0";
+    }
+
+    /**
+     * -this
+     */
+    function bnNegate() { var r = nbi(); BigInteger.ZERO.subTo(this,r); return r; }
+
+    /**
+     * |this|
+     */
+    function bnAbs() { return (this.s<0)?this.negate():this; }
+
+    /**
+     * return + if this > a, - if this < a, 0 if equal
+     */
+    function bnCompareTo(a) {
+      var r = this.s-a.s;
+      if(r != 0) return r;
+      var i = this.t;
+      r = i-a.t;
+      if(r != 0) return (this.s<0)?-r:r;
+      while(--i >= 0) if((r=this[i]-a[i]) != 0) return r;
+      return 0;
+    }
+
+    /**
+     * return the number of bits in "this"
+     */
+    function bnBitLength() {
+      if(this.t <= 0) return 0;
+      return this.DB*(this.t-1)+nbits(this[this.t-1]^(this.s&this.DM));
+    }
+
+    /**
+     * this mod a
+     */
+    function bnMod(a) {
+      var r = nbi();
+      this.abs().divRemTo(a,null,r);
+      if(this.s < 0 && r.compareTo(BigInteger.ZERO) > 0) a.subTo(r,r);
+      return r;
+    }
+
+    /**
+     * this^e % m, 0 <= e < 2^32
+     */
+    function bnModPowInt(e,m) {
+      var z;
+      if(e < 256 || m.isEven()) z = new Classic(m); else z = new Montgomery(m);
+      return this.exp(e,z);
+    }
+
+    // Modular reduction using "classic" algorithm
+    function Classic(m) { this.m = m; }
+    function cConvert(x) {
+      if(x.s < 0 || x.compareTo(this.m) >= 0) return x.mod(this.m);
+      else return x;
+    }
+    function cRevert(x) { return x; }
+    function cReduce(x) { x.divRemTo(this.m,null,x); }
+    function cMulTo(x,y,r) { x.multiplyTo(y,r); this.reduce(r); }
+    function cSqrTo(x,r) { x.squareTo(r); this.reduce(r); }
+
+    Classic.prototype.convert = cConvert;
+    Classic.prototype.revert = cRevert;
+    Classic.prototype.reduce = cReduce;
+    Classic.prototype.mulTo = cMulTo;
+    Classic.prototype.sqrTo = cSqrTo;
 
     // Montgomery reduction
     function Montgomery(m) {
@@ -578,37 +608,6 @@
     Montgomery.prototype.reduce = montReduce;
     Montgomery.prototype.mulTo = montMulTo;
     Montgomery.prototype.sqrTo = montSqrTo;
-
-    /**
-     * true iff this is even
-     * @protected
-     */
-    function bnpIsEven() { return ((this.t>0)?(this[0]&1):this.s) == 0; }
-
-    /**
-     * this^e, e < 2^32, doing sqr and mul with "r" (HAC 14.79)
-     * @protected
-     */
-    function bnpExp(e,z) {
-      if(e > 0xffffffff || e < 1) return BigInteger.ONE;
-      var r = nbi(), r2 = nbi(), g = z.convert(this), i = nbits(e)-1;
-      g.copyTo(r);
-      while(--i >= 0) {
-        z.sqrTo(r,r2);
-        if((e&(1<<i)) > 0) z.mulTo(r2,g,r);
-        else { var t = r; r = r2; r2 = t; }
-      }
-      return z.revert(r);
-    }
-
-    /**
-     * this^e % m, 0 <= e < 2^32
-     */
-    function bnModPowInt(e,m) {
-      var z;
-      if(e < 256 || m.isEven()) z = new Classic(m); else z = new Montgomery(m);
-      return this.exp(e,z);
-    }
 
     // protected
     BigInteger.prototype.copyTo = bnpCopyTo;
