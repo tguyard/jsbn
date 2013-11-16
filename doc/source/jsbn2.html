@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>The source code</title>
+  <link href="../resources/prettify/prettify.css" type="text/css" rel="stylesheet" />
+  <script type="text/javascript" src="../resources/prettify/prettify.js"></script>
+  <style type="text/css">
+    .highlight { display: block; background-color: #ddd; }
+  </style>
+  <script type="text/javascript">
+    function highlight() {
+      document.getElementById(location.hash.replace(/#/, "")).className = "highlight";
+    }
+  </script>
+</head>
+<body onload="prettyPrint(); highlight();">
+  <pre class="prettyprint lang-js">// Copyright (c) 2005-2009  Tom Wu
+// All Rights Reserved.
+// See &quot;LICENSE&quot; for details.
+
+// Extended JavaScript BN functions, required for RSA private ops.
+
+// Version 1.1: new BigInteger(&quot;0&quot;, 10) returns &quot;proper&quot; zero
+// Version 1.2: square() API, isProbablePrime fix
+
+/*jslint bitwise: true, white: true, eqeq: true*/
+/*global BigInteger */
+
+(function () {
+    var _ns = BigInteger.utils,
+        apply = _ns.apply,
+        intAt = _ns.intAt,
+        nbi = _ns.nbi,
+        nbv = _ns.nbv,
+        nbits = _ns.nbits,
+        Classic = _ns.Classic,
+        Montgomery = _ns.Montgomery;
+
+    var lowprimes = [2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997],
+        lplim = (1&lt;&lt;26)/lowprimes[lowprimes.length-1];
+    function op_and(x,y) { return x&amp;y; }
+    function op_or(x,y) { return x|y; }
+    function op_xor(x,y) { return x^y; }
+    function op_andnot(x,y) { return x&amp;~y; }
+
+<span id='BigInteger'>    /**
+</span>     * @class BigInteger
+     */
+    apply(BigInteger.prototype, {
+        /*protected methods*/
+<span id='BigInteger-method-chunkSize'>        /**
+</span>         * return x s.t. r^x &lt; DV
+         * @protected
+         */
+        chunkSize: function (r) { return Math.floor(Math.LN2*this.DB/Math.log(r)); },
+<span id='BigInteger-method-toRadix'>        /**
+</span>         * convert to radix string
+         * @protected)
+         */
+        toRadix: function (b) {
+            if(b == null) b = 10;
+            if(this.signum() == 0 || b &lt; 2 || b &gt; 36) return &quot;0&quot;;
+            var cs = this.chunkSize(b);
+            var a = Math.pow(b,cs);
+            var d = nbv(a), y = nbi(), z = nbi(), r = &quot;&quot;;
+            this.divRemTo(d,y,z);
+            while(y.signum() &gt; 0) {
+                r = (a+z.intValue()).toString(b).substr(1) + r;
+                y.divRemTo(d,y,z);
+            }
+            return z.intValue().toString(b) + r;
+        },
+<span id='BigInteger-method-fromRadix'>        /**
+</span>         * convert from radix string
+         * @protected
+         */
+        fromRadix: function (s,b) {
+            this.fromInt(0);
+            if(b == null) b = 10;
+            var cs = this.chunkSize(b);
+            var d = Math.pow(b,cs), mi = false, j = 0, w = 0;
+            for(var i = 0; i &lt; s.length; ++i) {
+                var x = intAt(s,i);
+                if(x &lt; 0) {
+                if(s.charAt(i) == &quot;-&quot; &amp;&amp; this.signum() == 0) mi = true;
+                continue;
+                }
+                w = b*w+x;
+                if(++j &gt;= cs) {
+                    this.dMultiply(d);
+                    this.dAddOffset(w,0);
+                    j = 0;
+                    w = 0;
+                }
+            }
+            if(j &gt; 0) {
+                this.dMultiply(Math.pow(b,j));
+                this.dAddOffset(w,0);
+            }
+            if(mi) BigInteger.ZERO.subTo(this,this);
+        },
+<span id='BigInteger-method-fromNumber'>        /**
+</span>         * alternate constructor
+         * @protected
+         */
+        fromNumber: function (a,b,c) {
+            if(&quot;number&quot; == typeof b) {
+                // new BigInteger(int,int,RNG)
+                if(a &lt; 2) this.fromInt(1);
+                else {
+                    this.fromNumber(a,c);
+                    if(!this.testBit(a-1))	// force MSB set
+                    this.bitwiseTo(BigInteger.ONE.shiftLeft(a-1),op_or,this);
+                    if(this.isEven()) this.dAddOffset(1,0); // force odd
+                    while(!this.isProbablePrime(b)) {
+                        this.dAddOffset(2,0);
+                        if(this.bitLength() &gt; a) this.subTo(BigInteger.ONE.shiftLeft(a-1),this);
+                    }
+                }
+            } else {
+                // new BigInteger(int,RNG)
+                var x = [], t = a&amp;7;
+                x.length = (a&gt;&gt;3)+1;
+                b.nextBytes(x);
+                if(t &gt; 0) x[0] &amp;= ((1&lt;&lt;t)-1); else x[0] = 0;
+                this.fromString(x,256);
+            }
+        },
+<span id='BigInteger-method-bitwiseTo'>        /**
+</span>         * r = this op a (bitwise)
+         * @protected
+         */
+        bitwiseTo: function (a,op,r) {
+            var i, f, m = Math.min(a.t,this.t);
+            for(i = 0; i &lt; m; ++i) r[i] = op(this[i],a[i]);
+            if(a.t &lt; this.t) {
+                f = a.s&amp;this.DM;
+                for(i = m; i &lt; this.t; ++i) r[i] = op(this[i],f);
+                r.t = this.t;
+            }
+            else {
+                f = this.s&amp;this.DM;
+                for(i = m; i &lt; a.t; ++i) r[i] = op(f,a[i]);
+                r.t = a.t;
+            }
+            r.s = op(this.s,a.s);
+            r.clamp();
+        },
+<span id='BigInteger-method-changeBit'>        /**
+</span>         * this op (1&lt;&lt;n)
+         * @protected
+         */
+        changeBit:function (n,op) {
+            var r = BigInteger.ONE.shiftLeft(n);
+            this.bitwiseTo(r,op,r);
+            return r;
+        },
+<span id='BigInteger-method-addTo'>        /**
+</span>         * r = this + a
+         * @protected
+         */
+        addTo: function (a,r) {
+            var i = 0, c = 0, m = Math.min(a.t,this.t);
+            while(i &lt; m) {
+                c += this[i]+a[i];
+                r[i++] = c&amp;this.DM;
+                c &gt;&gt;= this.DB;
+            }
+            if(a.t &lt; this.t) {
+                c += a.s;
+                while(i &lt; this.t) {
+                  c += this[i];
+                  r[i++] = c&amp;this.DM;
+                  c &gt;&gt;= this.DB;
+                }
+                c += this.s;
+            }
+            else {
+                c += this.s;
+                while(i &lt; a.t) {
+                  c += a[i];
+                  r[i++] = c&amp;this.DM;
+                  c &gt;&gt;= this.DB;
+                }
+                c += a.s;
+            }
+            r.s = (c&lt;0)?-1:0;
+            if(c &gt; 0) r[i++] = c;
+            else if(c &lt; -1) r[i++] = this.DV+c;
+            r.t = i;
+            r.clamp();
+        },
+<span id='BigInteger-method-dMultiply'>        /**
+</span>         * this *= n, this &gt;= 0, 1 &lt; n &lt; DV
+         * @protected
+         */
+        dMultiply: function (n) {
+            this[this.t] = this.am(0,n-1,this,0,0,this.t);
+            ++this.t;
+            this.clamp();
+        },
+<span id='BigInteger-method-dAddOffset'>        /**
+</span>         * this += n &lt;&lt; w words, this &gt;= 0
+         * @protected
+         */
+        dAddOffset: function (n,w) {
+            if(n == 0) return;
+            while(this.t &lt;= w) this[this.t++] = 0;
+            this[w] += n;
+            while(this[w] &gt;= this.DV) {
+                this[w] -= this.DV;
+                if(++w &gt;= this.t) this[this.t++] = 0;
+                ++this[w];
+            }
+        },
+<span id='BigInteger-method-multiplyLowerTo'>        /**
+</span>         * r = lower n words of &quot;this * a&quot;, a.t &lt;= n
+         * &quot;this&quot; should be the larger one if appropriate.
+         * @protected
+         */
+        multiplyLowerTo: function (a,n,r) {
+            var i = Math.min(this.t+a.t,n);
+            r.s = 0; // assumes a,this &gt;= 0
+            r.t = i;
+            while(i &gt; 0) r[--i] = 0;
+            var j;
+            for(j = r.t-this.t; i &lt; j; ++i) r[i+this.t] = this.am(0,a[i],r,i,0,this.t);
+            for(j = Math.min(a.t,n); i &lt; j; ++i) this.am(0,a[i],r,i,0,n-i);
+            r.clamp();
+        },
+<span id='BigInteger-method-multiplyUpperTo'>        /**
+</span>         * r = &quot;this * a&quot; without lower n words, n &gt; 0
+         * &quot;this&quot; should be the larger one if appropriate.
+         * @protected
+         */
+        multiplyUpperTo: function (a,n,r) {
+            --n;
+            var i = r.t = this.t+a.t-n;
+            r.s = 0; // assumes a,this &gt;= 0
+            while(--i &gt;= 0) r[i] = 0;
+            for(i = Math.max(n-this.t,0); i &lt; a.t; ++i)
+            r[this.t+i-n] = this.am(n-i,a[i],r,0,0,this.t+i-n);
+            r.clamp();
+            r.drShiftTo(1,r);
+        },
+<span id='BigInteger-method-modInt'>        /**
+</span>         * this % n, n &lt; 2^26
+         * @protected
+         */
+        modInt: function (n) {
+            if(n &lt;= 0) return 0;
+            var d = this.DV%n, r = (this.s&lt;0)?n-1:0;
+            if(this.t &gt; 0)
+                if(d == 0) r = this[0]%n;
+                else for(var i = this.t-1; i &gt;= 0; --i) r = (d*r+this[i])%n;
+            return r;
+        },
+<span id='BigInteger-method-millerRabin'>        /**
+</span>         * true if probably prime (HAC 4.24, Miller-Rabin)
+         * @protected
+         */
+        millerRabin: function (t) {
+            var n1 = this.subtract(BigInteger.ONE);
+            var k = n1.getLowestSetBit();
+            if(k &lt;= 0) return false;
+            var r = n1.shiftRight(k);
+            t = (t+1)&gt;&gt;1;
+            if(t &gt; lowprimes.length) t = lowprimes.length;
+            var a = nbi();
+            for(var i = 0; i &lt; t; ++i) {
+                //Pick bases at random, instead of starting at 2
+                a.fromInt(lowprimes[Math.floor(Math.random()*lowprimes.length)]);
+                var y = a.modPow(r,this);
+                if(y.compareTo(BigInteger.ONE) != 0 &amp;&amp; y.compareTo(n1) != 0) {
+                    var j = 1;
+                    while(j++ &lt; k &amp;&amp; y.compareTo(n1) != 0) {
+                        y = y.modPowInt(2,this);
+                        if(y.compareTo(BigInteger.ONE) == 0) return false;
+                    }
+                    if(y.compareTo(n1) != 0) return false;
+                }
+            }
+            return true;
+        },
+
+        /*public methods*/
+
+        clone: function () { var r = nbi(); this.copyTo(r); return r; },
+<span id='BigInteger-method-intValue'>        /**
+</span>         * return value as integer
+         */
+        intValue: function () {
+            if(this.s &lt; 0) {
+                if(this.t == 1) return this[0]-this.DV;
+                else if(this.t == 0) return -1;
+            }
+            else if(this.t == 1) return this[0];
+            else if(this.t == 0) return 0;
+            // assumes 16 &lt; DB &lt; 32
+            return ((this[1]&amp;((1&lt;&lt;(32-this.DB))-1))&lt;&lt;this.DB)|this[0];
+        },
+<span id='BigInteger-method-byteValue'>        /**
+</span>         * return value as byte
+         */
+        byteValue: function () { return (this.t==0)?this.s:(this[0]&lt;&lt;24)&gt;&gt;24; },
+<span id='BigInteger-method-shortValue'>        /**
+</span>         * return value as short (assumes DB&gt;=16)
+         */
+        shortValue: function () { return (this.t==0)?this.s:(this[0]&lt;&lt;16)&gt;&gt;16; },
+<span id='BigInteger-method-signum'>        /**
+</span>         * 0 if this == 0, 1 if this &gt; 0
+         */
+        signum: function () {
+            if(this.s &lt; 0) return -1;
+            else if(this.t &lt;= 0 || (this.t == 1 &amp;&amp; this[0] &lt;= 0)) return 0;
+            else return 1;
+        },
+<span id='BigInteger-method-toByteArray'>        /**
+</span>         * convert to bigendian byte array
+         */
+        toByteArray: function () {
+            var i = this.t, r = [];
+            r[0] = this.s;
+            var p = this.DB-(i*this.DB)%8, d, k = 0;
+            if(i-- &gt; 0) {
+                if(p &lt; this.DB &amp;&amp; (d = this[i]&gt;&gt;p) != (this.s&amp;this.DM)&gt;&gt;p)
+                r[k++] = d|(this.s&lt;&lt;(this.DB-p));
+                while(i &gt;= 0) {
+                    if(p &lt; 8) {
+                        d = (this[i]&amp;((1&lt;&lt;p)-1))&lt;&lt;(8-p);
+                        d |= this[--i]&gt;&gt;(p+=this.DB-8);
+                    }
+                    else {
+                        d = (this[i]&gt;&gt;(p-=8))&amp;0xff;
+                        if(p &lt;= 0) { p += this.DB; --i; }
+                    }
+                    if((d&amp;0x80) != 0) d |= -256;
+                    if(k == 0 &amp;&amp; (this.s&amp;0x80) != (d&amp;0x80)) ++k;
+                    if(k &gt; 0 || d != this.s) r[k++] = d;
+                }
+            }
+            return r;
+        },
+<span id='BigInteger-method-equals'>        /**
+</span>         * this == a
+         */
+        equals: function (a) { return(this.compareTo(a)==0); },
+<span id='BigInteger-method-min'>        /**
+</span>         * min(this, a)
+         */
+        min: function (a) { return(this.compareTo(a)&lt;0)?this:a; },
+<span id='BigInteger-method-max'>        /**
+</span>         * max(this, a)
+         */
+        max: function (a) { return(this.compareTo(a)&gt;0)?this:a; },
+<span id='BigInteger-method-and'>        /**
+</span>         * this &amp; a
+         */
+        and: function (a) { var r = nbi(); this.bitwiseTo(a,op_and,r); return r; },
+<span id='BigInteger-method-or'>        /**
+</span>         * this | a
+         */
+        or: function (a) { var r = nbi(); this.bitwiseTo(a,op_or,r); return r; },
+<span id='BigInteger-method-xor'>        /**
+</span>         * this ^ a
+         */
+        xor: function (a) { var r = nbi(); this.bitwiseTo(a,op_xor,r); return r; },
+<span id='BigInteger-method-andNot'>        /**
+</span>         * this &amp; ~a
+         */
+        andNot: function (a) { var r = nbi(); this.bitwiseTo(a,op_andnot,r); return r; },
+<span id='BigInteger-method-not'>        /**
+</span>         * ~this
+         */
+        not: function () {
+            var r = nbi();
+            for(var i = 0; i &lt; this.t; ++i) r[i] = this.DM&amp;~this[i];
+            r.t = this.t;
+            r.s = ~this.s;
+            return r;
+        },
+<span id='BigInteger-method-shiftLeft'>        /**
+</span>         * this &lt;&lt; n
+         */
+        shiftLeft: function (n) {
+            var r = nbi();
+            if(n &lt; 0) this.rShiftTo(-n,r); else this.lShiftTo(n,r);
+            return r;
+        },
+<span id='BigInteger-method-shiftRight'>        /**
+</span>         * this &gt;&gt; n
+         */
+        shiftRight: function (n) {
+            var r = nbi();
+            if(n &lt; 0) this.lShiftTo(-n,r); else this.rShiftTo(n,r);
+            return r;
+        },
+<span id='BigInteger-property-getLowestSetBit'>        /**
+</span>         * returns index of lowest 1-bit (or -1 if none)
+         */
+        getLowestSetBit: (function () {
+            // return index of lowest 1-bit in x, x &lt; 2^31
+            function lbit(x) {
+                if(x == 0) return -1;
+                var r = 0;
+                if((x&amp;0xffff) == 0) { x &gt;&gt;= 16; r += 16; }
+                if((x&amp;0xff) == 0) { x &gt;&gt;= 8; r += 8; }
+                if((x&amp;0xf) == 0) { x &gt;&gt;= 4; r += 4; }
+                if((x&amp;3) == 0) { x &gt;&gt;= 2; r += 2; }
+                if((x&amp;1) == 0) ++r;
+                return r;
+            }
+            return function () {
+                for(var i = 0; i &lt; this.t; ++i)
+                    if(this[i] != 0) return i*this.DB+lbit(this[i]);
+                if(this.s &lt; 0) return this.t*this.DB;
+                return -1;
+            };
+        }()),
+<span id='BigInteger-property-bitCount'>        /**
+</span>         * return number of set bits
+         */
+        bitCount: (function () {
+            // return number of 1 bits in x
+            function cbit(x) {
+                var r = 0;
+                while(x != 0) { x &amp;= x-1; ++r; }
+                return r;
+            }
+            return function () {
+                var r = 0, x = this.s&amp;this.DM;
+                for(var i = 0; i &lt; this.t; ++i) r += cbit(this[i]^x);
+                return r;
+            };
+        }()),
+<span id='BigInteger-method-testBit'>        /**
+</span>         * true iff nth bit is set
+         */
+        testBit: function (n) {
+            var j = Math.floor(n/this.DB);
+            if(j &gt;= this.t) return(this.s!=0);
+            return((this[j]&amp;(1&lt;&lt;(n%this.DB)))!=0);
+        },
+<span id='BigInteger-method-setBit'>        /**
+</span>         * this | (1&lt;&lt;n)
+         */
+        setBit: function (n) { return this.changeBit(n,op_or); },
+<span id='BigInteger-method-clearBit'>        /**
+</span>         * this &amp; ~(1&lt;&lt;n)
+         */
+        clearBit: function (n) { return this.changeBit(n,op_andnot); },
+<span id='BigInteger-method-flipBit'>        /**
+</span>         * this ^ (1&lt;&lt;n)
+         */
+        flipBit: function (n) { return this.changeBit(n,op_xor); },
+<span id='BigInteger-method-add'>        /**
+</span>         * this + a
+         */
+        add: function (a) { var r = nbi(); this.addTo(a,r); return r; },
+<span id='BigInteger-method-subtract'>        /**
+</span>         * this - a
+         */
+        subtract: function (a) { var r = nbi(); this.subTo(a,r); return r; },
+<span id='BigInteger-method-multiply'>        /**
+</span>         * this * a
+         */
+        multiply: function (a) { var r = nbi(); this.multiplyTo(a,r); return r; },
+<span id='BigInteger-method-divide'>        /**
+</span>         * this / a
+         */
+        divide: function (a) { var r = nbi(); this.divRemTo(a,r,null); return r; },
+<span id='BigInteger-method-remainder'>        /**
+</span>         * this % a
+         */
+        remainder: function (a) { var r = nbi(); this.divRemTo(a,null,r); return r; },
+<span id='BigInteger-method-divideAndRemainder'>        /**
+</span>         * [this/a,this%a]
+         */
+        divideAndRemainder: function (a) {
+            var q = nbi(), r = nbi();
+            this.divRemTo(a,q,r);
+            return new Array(q,r);
+        },
+<span id='BigInteger-method-modPow'>        /**
+</span>         * this^e % m (HAC 14.85)
+         */
+        modPow: function (e, m) {
+             var i = e.bitLength(), k, r = nbv(1), z;
+            if(i &lt;= 0) return r;
+            else if(i &lt; 18) k = 1;
+            else if(i &lt; 48) k = 3;
+            else if(i &lt; 144) k = 4;
+            else if(i &lt; 768) k = 5;
+            else k = 6;
+            if(i &lt; 8)
+            z = new Classic(m);
+            else if(m.isEven())
+            z = new Barrett(m);
+            else
+            z = new Montgomery(m);
+
+            // precomputation
+            var g = new Array(), n = 3, k1 = k-1, km = (1&lt;&lt;k)-1;
+            g[1] = z.convert(this);
+            if(k &gt; 1) {
+                var g2 = nbi();
+                z.sqrTo(g[1],g2);
+                while(n &lt;= km) {
+                    g[n] = nbi();
+                    z.mulTo(g2,g[n-2],g[n]);
+                    n += 2;
+                }
+            }
+
+            var j = e.t-1, w, is1 = true, r2 = nbi(), t;
+            i = nbits(e[j])-1;
+            while(j &gt;= 0) {
+                if(i &gt;= k1) w = (e[j]&gt;&gt;(i-k1))&amp;km;
+                else {
+                    w = (e[j]&amp;((1&lt;&lt;(i+1))-1))&lt;&lt;(k1-i);
+                    if(j &gt; 0) w |= e[j-1]&gt;&gt;(this.DB+i-k1);
+                }
+
+                n = k;
+                while((w&amp;1) == 0) { w &gt;&gt;= 1; --n; }
+                if((i -= n) &lt; 0) { i += this.DB; --j; }
+                if(is1) {	// ret == 1, don't bother squaring or multiplying it
+                    g[w].copyTo(r);
+                    is1 = false;
+                }
+                else {
+                    while(n &gt; 1) { z.sqrTo(r,r2); z.sqrTo(r2,r); n -= 2; }
+                    if(n &gt; 0) z.sqrTo(r,r2); else { t = r; r = r2; r2 = t; }
+                    z.mulTo(r2,g[w],r);
+                }
+
+                while(j &gt;= 0 &amp;&amp; (e[j]&amp;(1&lt;&lt;i)) == 0) {
+                    z.sqrTo(r,r2); t = r; r = r2; r2 = t;
+                    if(--i &lt; 0) { i = this.DB-1; --j; }
+                }
+            }
+            return z.revert(r);
+        },
+<span id='BigInteger-method-modInverse'>        /**
+</span>         * 1/this % m (HAC 14.61)
+         */
+        modInverse: function (m) {
+            var ac = m.isEven();
+            if((this.isEven() &amp;&amp; ac) || m.signum() == 0) return BigInteger.ZERO;
+            var u = m.clone(), v = this.clone();
+            var a = nbv(1), b = nbv(0), c = nbv(0), d = nbv(1);
+            while(u.signum() != 0) {
+                while(u.isEven()) {
+                    u.rShiftTo(1,u);
+                    if(ac) {
+                        if(!a.isEven() || !b.isEven()) { a.addTo(this,a); b.subTo(m,b); }
+                        a.rShiftTo(1,a);
+                    }
+                    else if(!b.isEven()) b.subTo(m,b);
+                    b.rShiftTo(1,b);
+                }
+                while(v.isEven()) {
+                    v.rShiftTo(1,v);
+                    if(ac) {
+                    if(!c.isEven() || !d.isEven()) { c.addTo(this,c); d.subTo(m,d); }
+                    c.rShiftTo(1,c);
+                    }
+                    else if(!d.isEven()) d.subTo(m,d);
+                    d.rShiftTo(1,d);
+                }
+                if(u.compareTo(v) &gt;= 0) {
+                    u.subTo(v,u);
+                    if(ac) a.subTo(c,a);
+                    b.subTo(d,b);
+                }
+                else {
+                    v.subTo(u,v);
+                    if(ac) c.subTo(a,c);
+                    d.subTo(b,d);
+                }
+            }
+            if(v.compareTo(BigInteger.ONE) != 0) return BigInteger.ZERO;
+            if(d.compareTo(m) &gt;= 0) return d.subtract(m);
+            if(d.signum() &lt; 0) d.addTo(m,d); else return d;
+            if(d.signum() &lt; 0) return d.add(m); else return d;
+        },
+<span id='BigInteger-method-pow'>        /**
+</span>         * this^e
+         */
+        pow: function (e) { return this.exp(e,new NullExp()); },
+<span id='BigInteger-method-gcd'>        /**
+</span>         * gcd(this,a) (HAC 14.54)
+         */
+        gcd: function (a) {
+            var x = (this.s&lt;0)?this.negate():this.clone();
+            var y = (a.s&lt;0)?a.negate():a.clone();
+            if(x.compareTo(y) &lt; 0) { var t = x; x = y; y = t; }
+            var i = x.getLowestSetBit(), g = y.getLowestSetBit();
+            if(g &lt; 0) return x;
+            if(i &lt; g) g = i;
+            if(g &gt; 0) {
+                x.rShiftTo(g,x);
+                y.rShiftTo(g,y);
+            }
+            while(x.signum() &gt; 0) {
+                if((i = x.getLowestSetBit()) &gt; 0) x.rShiftTo(i,x);
+                if((i = y.getLowestSetBit()) &gt; 0) y.rShiftTo(i,y);
+                if(x.compareTo(y) &gt;= 0) {
+                    x.subTo(y,x);
+                    x.rShiftTo(1,x);
+                }
+                else {
+                    y.subTo(x,y);
+                    y.rShiftTo(1,y);
+                }
+            }
+            if(g &gt; 0) y.lShiftTo(g,y);
+            return y;
+        },
+<span id='BigInteger-method-isProbablePrime'>        /**
+</span>         * test primality with certainty &gt;= 1-.5^t
+         */
+        isProbablePrime: function (t) {
+            var i, x = this.abs();
+            if(x.t == 1 &amp;&amp; x[0] &lt;= lowprimes[lowprimes.length-1]) {
+                for(i = 0; i &lt; lowprimes.length; ++i)
+                    if(x[0] == lowprimes[i]) return true;
+                return false;
+            }
+            if(x.isEven()) return false;
+            i = 1;
+            while(i &lt; lowprimes.length) {
+                var m = lowprimes[i], j = i+1;
+                while(j &lt; lowprimes.length &amp;&amp; m &lt; lplim) m *= lowprimes[j++];
+                m = x.modInt(m);
+                while(i &lt; j) if(m%lowprimes[i++] == 0) return false;
+            }
+            return x.millerRabin(t);
+        },
+
+        // JSBN-specific extension
+<span id='BigInteger-method-square'>        /**
+</span>         * this^2
+         */
+        square: function () { var r = nbi(); this.squareTo(r); return r; }
+
+        // BigInteger interfaces not implemented in jsbn:
+
+        // BigInteger(int signum, byte[] magnitude)
+        // double doubleValue()
+        // float floatValue()
+        // int hashCode()
+        // long longValue()
+        // static BigInteger valueOf(long val)
+    });
+
+<span id='BigInteger-utils-NullExp'>    /**
+</span>     * A &quot;null&quot; reducer
+     * @class BigInteger.utils.NullExp
+     */
+    function NullExp() {}
+    function nNop(x) { return x; }
+    NullExp.prototype = {
+        convert: nNop,
+        revert: nNop,
+        mulTo: function (x,y,r) { x.multiplyTo(y,r); },
+        sqrTo: function (x,r) { x.squareTo(r); }
+    };
+
+<span id='BigInteger-utils-Barrett'>    /**
+</span>     * Barrett modular reduction
+     * @class BigInteger.utils.Barrett
+     */
+    function Barrett(m) {
+      // setup Barrett
+      this.r2 = nbi();
+      this.q3 = nbi();
+      BigInteger.ONE.dlShiftTo(2*m.t,this.r2);
+      this.mu = this.r2.divide(m);
+      this.m = m;
+    }
+    Barrett.prototype = {
+        convert: function (x) {
+            if(x.s &lt; 0 || x.t &gt; 2*this.m.t) return x.mod(this.m);
+            else if(x.compareTo(this.m) &lt; 0) return x;
+            else { var r = nbi(); x.copyTo(r); this.reduce(r); return r; }
+        },
+        revert: function (x) { return x; },
+            // x = x mod m (HAC 14.42)
+            reduce: function barrettReduce(x) {
+            x.drShiftTo(this.m.t-1,this.r2);
+            if(x.t &gt; this.m.t+1) { x.t = this.m.t+1; x.clamp(); }
+            this.mu.multiplyUpperTo(this.r2,this.m.t+1,this.q3);
+            this.m.multiplyLowerTo(this.q3,this.m.t+1,this.r2);
+            while(x.compareTo(this.r2) &lt; 0) x.dAddOffset(1,this.m.t+1);
+            x.subTo(this.r2,x);
+            while(x.compareTo(this.m) &gt;= 0) x.subTo(this.m,x);
+        },
+<span id='BigInteger-utils-Barrett-method-mulTo'>        /**
+</span>         * r = x*y mod m; x,y != r
+         */
+        mulTo: function (x,y,r) {x.multiplyTo(y,r); this.reduce(r); },
+<span id='BigInteger-utils-Barrett-method-sqrTo'>        /**
+</span>         * r = x^2 mod m; x != r
+         */
+        sqrTo: function (x,r) { x.squareTo(r); this.reduce(r); }
+    };
+
+    apply(BigInteger.utils, {
+        NullExp: NullExp,
+        Barrett: Barrett
+    });
+}());
+</pre>
+</body>
+</html>

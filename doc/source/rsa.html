@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>The source code</title>
+  <link href="../resources/prettify/prettify.css" type="text/css" rel="stylesheet" />
+  <script type="text/javascript" src="../resources/prettify/prettify.js"></script>
+  <style type="text/css">
+    .highlight { display: block; background-color: #ddd; }
+  </style>
+  <script type="text/javascript">
+    function highlight() {
+      document.getElementById(location.hash.replace(/#/, "")).className = "highlight";
+    }
+  </script>
+</head>
+<body onload="prettyPrint(); highlight();">
+  <pre class="prettyprint lang-js">// Depends on jsbn.js and rng.js
+
+// Version 1.1: support utf-8 encoding in pkcs1pad2
+
+/*jslint bitwise: true, white: true */
+/*global BigInteger, SecureRandom*/
+
+(function () {
+    // convert a (hex) string to a bignum object
+    function parseBigInt(str,r) {
+        return new BigInteger(str,r);
+    }
+
+    function byte2Hex(b) {
+        if(b &lt; 0x10)
+            return &quot;0&quot; + b.toString(16);
+        else
+            return b.toString(16);
+    }
+
+    // PKCS#1 (type 2, random) pad input string s to n bytes, and return a bigint
+    function pkcs1pad2(s,n) {
+        if(n &lt; s.length + 11) { // TODO: fix for utf-8
+            alert(&quot;Message too long for RSA&quot;);
+            return null;
+        }
+        var ba = [];
+        var i = s.length - 1;
+        while(i &gt;= 0 &amp;&amp; n &gt; 0) {
+            var c = s.charCodeAt(i--);
+            if(c &lt; 128) { // encode using utf-8
+                ba[--n] = c;
+            }
+            else if((c &gt; 127) &amp;&amp; (c &lt; 2048)) {
+                ba[--n] = (c &amp; 63) | 128;
+                ba[--n] = (c &gt;&gt; 6) | 192;
+            }
+            else {
+                ba[--n] = (c &amp; 63) | 128;
+                ba[--n] = ((c &gt;&gt; 6) &amp; 63) | 128;
+                ba[--n] = (c &gt;&gt; 12) | 224;
+            }
+        }
+        ba[--n] = 0;
+        var rng = new SecureRandom();
+        var x = [];
+        while(n &gt; 2) { // random non-zero pad
+            x[0] = 0;
+            while(x[0] == 0) rng.nextBytes(x);
+            ba[--n] = x[0];
+        }
+        ba[--n] = 2;
+        ba[--n] = 0;
+        return new BigInteger(ba);
+    }
+
+<span id='RSAKey'>    /**
+</span>     * &quot;empty&quot; RSA key constructor
+     */
+    function RSAKey() {
+        this.n = null;
+        this.e = 0;
+        this.d = null;
+        this.p = null;
+        this.q = null;
+        this.dmp1 = null;
+        this.dmq1 = null;
+        this.coeff = null;
+    }
+    RSAKey.prototype = {
+        // protected
+<span id='RSAKey-method-doPublic'>        /**
+</span>         * Perform raw public operation on &quot;x&quot;: return x^e (mod n)
+         * @protected
+         */
+        doPublic: function (x) {
+          return x.modPowInt(this.e, this.n);
+        },
+
+        // public
+<span id='RSAKey-method-setPublic'>        /**
+</span>         * Set the public key fields N and e from hex strings
+         */
+        setPublic: function (N,E) {
+            if(N != null &amp;&amp; E != null &amp;&amp; N.length &gt; 0 &amp;&amp; E.length &gt; 0) {
+                this.n = parseBigInt(N,16);
+                this.e = parseInt(E,16);
+            }
+            else
+                alert(&quot;Invalid RSA public key&quot;);
+        },
+<span id='RSAKey-method-encrypt'>        /**
+</span>         * Return the PKCS#1 RSA encryption of &quot;text&quot; as an even-length hex string
+         */
+        encrypt: function (text) {
+            var m = pkcs1pad2(text,(this.n.bitLength()+7)&gt;&gt;3);
+            if(m == null) return null;
+            var c = this.doPublic(m);
+            if(c == null) return null;
+            var h = c.toString(16);
+            if((h.length &amp; 1) == 0) return h; else return &quot;0&quot; + h;
+        }
+        // Return the PKCS#1 RSA encryption of &quot;text&quot; as a Base64-encoded string
+        /*encrypt_b64: function (text) {
+            var h = this.encrypt(text);
+            if(h) return hex2b64(h); else return null;
+        }*/
+    };
+
+    //For browsers
+    window.RSAKey = RSAKey;
+}());
+</pre>
+</body>
+</html>
