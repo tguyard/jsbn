@@ -13,6 +13,11 @@
     var rng_pptr;
     var rng_psize = PRNG.psize;
 
+    /**
+     * SecureRandom class
+     */
+    function SecureRandom() {}
+
     // Mix in a 32-bit integer into the pool
     function rng_seed_int(x) {
       rng_pool[rng_pptr++] ^= x & 255;
@@ -24,10 +29,34 @@
 
     /**
      * Mix in the current time (w/milliseconds) into the pool
+     * @method seedTime
+     * @static
      */
     function rng_seed_time() {
-      rng_seed_int(new Date().getTime());
+        rng_seed_int(new Date().getTime());
     }
+
+    function rng_get_byte() {
+      if(rng_state == null) {
+        rng_seed_time();
+        rng_state = PRNG.newstate();
+        rng_state.init(rng_pool);
+        for(rng_pptr = 0; rng_pptr < rng_pool.length; ++rng_pptr)
+          rng_pool[rng_pptr] = 0;
+        rng_pptr = 0;
+        //rng_pool = null;
+      }
+      // TODO: allow reseeding after first request
+      return rng_state.next();
+    }
+
+    function rng_get_bytes(ba) {
+      var i;
+      for(i = 0; i < ba.length; ++i) ba[i] = rng_get_byte();
+    }
+
+    SecureRandom.prototype.nextBytes = rng_get_bytes;
+    SecureRandom.seedTime = rng_seed_time;
 
     // Initialize the pool with junk if needed.
     if(rng_pool == null) {
@@ -57,33 +86,6 @@
       //rng_seed_int(window.screenX);
       //rng_seed_int(window.screenY);
     }
-
-    function rng_get_byte() {
-      if(rng_state == null) {
-        rng_seed_time();
-        rng_state = PRNG.newstate();
-        rng_state.init(rng_pool);
-        for(rng_pptr = 0; rng_pptr < rng_pool.length; ++rng_pptr)
-          rng_pool[rng_pptr] = 0;
-        rng_pptr = 0;
-        //rng_pool = null;
-      }
-      // TODO: allow reseeding after first request
-      return rng_state.next();
-    }
-
-    function rng_get_bytes(ba) {
-      var i;
-      for(i = 0; i < ba.length; ++i) ba[i] = rng_get_byte();
-    }
-
-    function SecureRandom() {}
-
-    SecureRandom.prototype.nextBytes = rng_get_bytes;
-    /**
-     * @static
-     */
-    SecureRandom.seedTime = rng_seed_time;
 
     //For browsers
     window.SecureRandom = SecureRandom;
