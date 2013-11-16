@@ -35,6 +35,11 @@ will print `b60c`.
  * [`prng4.js`](prng4.js) - ARC4-based PRNG backend for `rng.js`, very small.
  * [`base64.js`](base64.js) - Base64 encoding and decoding routines.
 
+Documentation
+-------------
+
+[API Documentation](http://munawwar.github.io/jsbn/doc/)
+
 Interoperability
 ----------------
 
