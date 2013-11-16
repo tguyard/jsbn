@@ -31,7 +31,7 @@ will print `b60c`.
  * [`jsbn2.js`](jsbn2.js) - the rest of the library, including most public `BigInteger` methods.
  * [`rsa.js`](rsa.js) - implementation of RSA encryption, does not require `jsbn2.js`.
  * [`rsa2.js`](rsa2.js) - rest of RSA algorithm, including decryption and keygen.
- * [`rng.js`](rng.js) - rudimentary entropy collector and RNG interface, requires a PRNG backend to define `prng_newstate()`.
+ * [`rng.js`](rng.js) - rudimentary entropy collector and RNG interface, requires a PRNG backend to define `PRNG.newstate()`.
  * [`prng4.js`](prng4.js) - ARC4-based PRNG backend for `rng.js`, very small.
  * [`base64.js`](base64.js) - Base64 encoding and decoding routines.
 
