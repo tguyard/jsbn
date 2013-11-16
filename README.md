@@ -137,7 +137,7 @@ when PKCS1 encoding and decoding JavaScript strings.
 Licensing
 ---------
 
-`jsbn` is released under a BSD license.
+`jsbn` is released under a MIT license.
 See [`LICENSE`](LICENSE) for details.
 
 [Tom Wu](mailto:tjw@cs.stanford.edu)
