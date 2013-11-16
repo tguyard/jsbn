@@ -7,11 +7,10 @@
 // Version 1.1: new BigInteger("0", 10) returns "proper" zero
 // Version 1.2: square() API, isProbablePrime fix
 /*jslint bitwise: true, white: true, eqeq: true*/
-/*global JSBN */
+/*global BigInteger */
 
 (function () {
-    var BigInteger = JSBN.BigInteger,
-        _ns = BigInteger.utils,
+    var _ns = BigInteger.utils,
         apply = _ns.apply,
         intAt = _ns.intAt,
         nbi = _ns.nbi,

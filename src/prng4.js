@@ -1,7 +1,6 @@
 // prng4.js - uses Arcfour as a PRNG
 
 /*jslint bitwise: true, white: true */
-/*global JSBN*/
 
 (function () {
     function Arcfour() {
@@ -40,7 +39,7 @@
     Arcfour.prototype.next = ARC4next;
 
     //For browsers
-    PRNG = {
+    window.PRNG = {
         // Plug in your RNG constructor here
         newstate: function () {
           return new Arcfour();
