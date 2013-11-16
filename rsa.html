@@ -11,6 +11,15 @@
 <script language="JavaScript" type="text/javascript" src="base64.js"></script>
 <script language="JavaScript">
 <!--
+function linebrk(s,n) {
+  var ret = "";
+  var i = 0;
+  while(i + n < s.length) {
+    ret += s.substring(i,i+n) + "\n";
+    i += n;
+  }
+  return ret + s.substring(i,s.length);
+}
 function set_512e3() {
   document.rsatest.n.value="BC86E3DC782C446EE756B874ACECF2A115E613021EAF1ED5EF295BEC2BED899D\n26FE2EC896BF9DE84FE381AF67A7B7CBB48D85235E72AB595ABF8FE840D5F8DB";
   document.rsatest.e.value="3";
@@ -42,7 +51,7 @@ function do_encrypt() {
 //-->
 </script>
 
-  <body onLoad='set_1024f4();' onClick='rng_seed_time();' onKeyPress='rng_seed_time();'>
+  <body onLoad='set_1024f4();' onClick='SecureRandom.seedTime();' onKeyPress='SecureRandom.seedTime();'>
     <h1>JavaScript RSA Encryption Demo</h1>
 
 <form name="rsatest" onSubmit='do_encrypt();return false;'>
