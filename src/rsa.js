@@ -106,6 +106,12 @@
             if(h) return hex2b64(h); else return null;
         }*/
     };
+    /**
+     * Calls {@link SecureRandom#seedTime}
+     * @static
+     * @method
+     */
+    RSAKey.seed = SecureRandom.seedTime;
 
     //For browsers
     window.RSAKey = RSAKey;
