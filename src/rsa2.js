@@ -3,9 +3,18 @@
 // Version 1.1: support utf-8 decoding in pkcs1unpad2
 
 /*jslint bitwise: true, white: true */
-/*global RSAKey, BigInteger */
 
-(function () {
+/*global require, module, define */
+
+(function (root, factory) {
+    if (typeof define === "function" && define.amd) {
+        define(['rsa.js', 'jsbn2.js'], factory);
+    } else if (typeof exports === 'object') { //For NodeJS
+        module.exports = factory(require('rsa.js'), require('jsbn2.js'));
+    } else { //For browsers
+        factory(root.RSAKey, root.BigInteger);
+    }
+}(this, function (RSAKey, BigInteger) {
     var SecureRandom = RSAKey.utils.SecureRandom;
 
     // convert a (hex) string to a bignum object
@@ -145,4 +154,6 @@
         var h = b64tohex(ctext);
         if(h) return this.decrypt(h); else return null;
     };*/
-}());
+
+    return RSAKey;
+}));

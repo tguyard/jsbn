@@ -8,9 +8,18 @@
 // Version 1.2: square() API, isProbablePrime fix
 
 /*jslint bitwise: true, white: true, eqeq: true*/
-/*global BigInteger */
 
-(function () {
+/*global require, module, define */
+
+(function (root, factory) {
+    if (typeof define === "function" && define.amd) {
+        define(['jsbn.js'], factory);
+    } else if (typeof exports === 'object') { //For NodeJS
+        module.exports = factory(require('jsbn.js'));
+    } else { //For browsers
+        factory(root.BigInteger);
+    }
+}(this, function (BigInteger) {
     var _ns = BigInteger.utils,
         apply = _ns.apply,
         intAt = _ns.intAt,
@@ -696,4 +705,6 @@
         NullExp: NullExp,
         Barrett: Barrett
     });
-}());
+
+    return BigInteger;
+}));

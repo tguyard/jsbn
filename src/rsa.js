@@ -3,9 +3,18 @@
 // Version 1.1: support utf-8 encoding in pkcs1pad2
 
 /*jslint bitwise: true, white: true */
-/*global BigInteger*/
 
-(function () {
+/*global require, module, define */
+
+(function (root, factory) {
+    if (typeof define === "function" && define.amd) {
+        define(['jsbn2.js'], factory);
+    } else if (typeof exports === 'object') { //For NodeJS
+        module.exports = factory(require('jsbn2.js'));
+    } else { //For browsers
+        root.RSAKey = factory(root.BigInteger);
+    }
+}(this, function (BigInteger) {
     //Utility functions
 
     // convert a (hex) string to a bignum object
@@ -256,6 +265,5 @@
         SecureRandom: SecureRandom
     };
 
-    //For browsers
-    window.RSAKey = RSAKey;
-}());
+    return RSAKey;
+}));

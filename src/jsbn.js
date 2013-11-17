@@ -6,7 +6,17 @@
 
 /*jslint bitwise: true, white: true, eqeq: true*/
 
-(function () {
+/*global module, define */
+
+(function (root, factory) {
+    if (typeof define === "function" && define.amd) {
+        define(factory);
+    } else if (typeof exports === 'object') { //For NodeJS
+        module.exports = factory();
+    } else { //For browsers
+        root.BigInteger = factory();
+    }
+}(this, function () {
     //Copy all properties from obj to target object.
     function apply(target, obj) {
         for (var key in obj) {
@@ -614,6 +624,5 @@
         Montgomery: Montgomery
     };
 
-    //For browsers
-    window.BigInteger = BigInteger;
-}());
+    return BigInteger;
+}));
