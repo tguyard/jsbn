@@ -641,6 +641,7 @@
     /**
      * A "null" reducer
      * @class BigInteger.utils.NullExp
+     * @private
      */
     function NullExp() {}
     function nNop(x) { return x; }
@@ -654,6 +655,7 @@
     /**
      * Barrett modular reduction
      * @class BigInteger.utils.Barrett
+     * @private
      */
     function Barrett(m) {
       // setup Barrett

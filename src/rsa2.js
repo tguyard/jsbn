@@ -3,9 +3,11 @@
 // Version 1.1: support utf-8 decoding in pkcs1unpad2
 
 /*jslint bitwise: true, white: true */
-/*global RSAKey, BigInteger, SecureRandom */
+/*global RSAKey, BigInteger */
 
 (function () {
+    var SecureRandom = RSAKey.utils.SecureRandom;
+
     // convert a (hex) string to a bignum object
     //TODO: Redundant. Also defined in rsa.js but it isn't accessible.
     function parseBigInt(str,r) {

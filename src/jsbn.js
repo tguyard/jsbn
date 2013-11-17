@@ -521,6 +521,7 @@
     /**
      * Modular reduction using "classic" algorithm
      * @class BigInteger.utils.Classic
+     * @private
      */
     function Classic(m) { this.m = m; }
     Classic.prototype = {
@@ -538,6 +539,7 @@
     /**
      * Montgomery reduction
      * @class BigInteger.utils.Montgomery
+     * @private
      */
     function Montgomery(m) {
       this.m = m;
