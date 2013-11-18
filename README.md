@@ -7,10 +7,10 @@ integer arithmetic.
 Demos
 -----
 
- * [RSA Encryption Demo](rsa.html) - simple RSA encryption of a string with a
-   public key
- * [RSA Cryptography Demo](rsa2.html) - more complete demo of RSA encryption,
-   decryption, and key generation
+ * [RSA Encryption Demo](http://munawwar.github.io/jsbn/rsa.html) - simple RSA encryption of a string with a
+   public key. [See code](rsa.html).
+ * [RSA Cryptography Demo](http://munawwar.github.io/jsbn/rsa2.html) - more complete demo of RSA encryption,
+   decryption, and key generation. [See code](rsa2.html).
 
 Source Code
 -----------
