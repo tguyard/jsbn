@@ -54,9 +54,9 @@ function _asnhex_getIntOfL_AtObj(s, pos) {
   if (hLength == '') return -1;
   var bi;
   if (parseInt(hLength.substring(0, 1)) < 8) {
-     bi = parseBigInt(hLength, 16);
+     bi = new BigInteger(hLength, 16);
   } else {
-     bi = parseBigInt(hLength.substring(2), 16);
+     bi = new BigInteger(hLength.substring(2), 16);
   }
   return bi.intValue();
 }
